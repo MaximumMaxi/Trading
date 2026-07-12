@@ -85,6 +85,14 @@ def _pip_for(digits: int, point: float) -> float:
     return point * 10 if digits in (3, 5) else point
 
 
+def _category_for(sym: str) -> str:
+    """Match a broker symbol (possibly suffixed, e.g. EURUSDm) to a category."""
+    for base, cat in _CATEGORY_OF.items():
+        if sym == base or sym.startswith(base):
+            return cat
+    return "unknown"
+
+
 def build_specs_from_mt5(symbols, get_symbol_spec_fn, save: bool = True
                          ) -> Dict[str, SymbolSpec]:
     """
@@ -102,7 +110,7 @@ def build_specs_from_mt5(symbols, get_symbol_spec_fn, save: bool = True
             continue
         specs[sym] = SymbolSpec(
             symbol=raw["symbol"],
-            category=_CATEGORY_OF.get(sym, "unknown"),
+            category=_category_for(sym),
             digits=raw["digits"],
             point=raw["point"],
             pip=_pip_for(raw["digits"], raw["point"]),
@@ -115,9 +123,14 @@ def build_specs_from_mt5(symbols, get_symbol_spec_fn, save: bool = True
             typical_spread_points=raw["spread_points"],
         )
     if save and specs:
+        merged = {}
+        if os.path.exists(_SPECS_FILE):
+            with open(_SPECS_FILE) as f:
+                merged = json.load(f)
+        merged.update({k: asdict(v) for k, v in specs.items()})
         with open(_SPECS_FILE, "w") as f:
-            json.dump({k: asdict(v) for k, v in specs.items()}, f, indent=2)
-        logger.info(f"Saved {len(specs)} specs to {_SPECS_FILE}")
+            json.dump(merged, f, indent=2)
+        logger.info(f"Saved {len(specs)} specs (merged; {len(merged)} total) to {_SPECS_FILE}")
     return specs
 
 
