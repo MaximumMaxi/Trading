@@ -49,10 +49,11 @@ def _grid():
         yield dict(zip(keys, combo))
 
 
-def _make_router(p, min_rr):
+def _make_router(p, min_rr, strategy_by_category=None):
     cfg = RegimeConfig(adx_trend=p["adx_trend"])
     return EnsembleRouter(regime_cfg=cfg, atr_sl_mult=p["atr_sl_mult"],
-                          atr_tp_mult=p["atr_tp_mult"], min_rr=min_rr)
+                          atr_tp_mult=p["atr_tp_mult"], min_rr=min_rr,
+                          strategy_by_category=strategy_by_category)
 
 
 def _objective(res, min_trades):
@@ -83,7 +84,7 @@ def _build_folds(symbol_data, n_splits, anchored=True):
 
 # ─── main walk-forward ──────────────────────────────────────────────────────────
 def walk_forward(symbol_data, n_splits=4, anchored=True, min_trades=15,
-                 base_capital=None, risk_pct=None):
+                 base_capital=None, risk_pct=None, strategy_by_category=None):
     base_capital = base_capital or settings.INITIAL_CAPITAL
     risk_pct = risk_pct if risk_pct is not None else settings.RISK_PER_TRADE
     min_rr = settings.MIN_RR_RATIO
@@ -104,7 +105,7 @@ def walk_forward(symbol_data, n_splits=4, anchored=True, min_trades=15,
         for p in _grid():
             eng = PortfolioBacktestEngine(initial_capital=base_capital,
                                           risk_pct=risk_pct)
-            r = eng.run(symbol_data, _make_router(p, min_rr),
+            r = eng.run(symbol_data, _make_router(p, min_rr, strategy_by_category),
                         entry_start=is_s, entry_end=is_e)
             s = _objective(r, min_trades)
             if s > best_score:
@@ -112,7 +113,7 @@ def walk_forward(symbol_data, n_splits=4, anchored=True, min_trades=15,
 
         # 2. validate on out-of-sample with best params, chaining equity
         eng = PortfolioBacktestEngine(initial_capital=wf_equity, risk_pct=risk_pct)
-        oos = eng.run(symbol_data, _make_router(best_p, min_rr),
+        oos = eng.run(symbol_data, _make_router(best_p, min_rr, strategy_by_category),
                       entry_start=oos_s, entry_end=oos_e)
 
         is_ret = best_score  # objective proxy for IS quality

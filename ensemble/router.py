@@ -45,9 +45,11 @@ class EnsembleRouter:
 
         trend = TrendStrategy()
         momentum = MomentumStrategy()
+        trend_strict = TrendStrategy(require_htf_agree=True)
+        momentum_strict = MomentumStrategy(require_htf_agree=True)
         self.routing = {
-            TREND_UP:   [trend, momentum],
-            TREND_DOWN: [trend, momentum],
+            TREND_UP:   [trend, momentum, trend_strict, momentum_strict],
+            TREND_DOWN: [trend, momentum, trend_strict, momentum_strict],
             RANGE:      [MeanReversionStrategy()],
             VOLATILE:   [BreakoutStrategy()],
         }

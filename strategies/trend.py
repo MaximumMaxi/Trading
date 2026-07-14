@@ -18,12 +18,17 @@ from strategies.base import Signal, StratContext, Strategy, build_signal
 
 
 class TrendStrategy(Strategy):
-    name = "trend_ma_bounce"
     allowed_regimes = {TREND_UP, TREND_DOWN}
 
-    def __init__(self, touch_atr: float = 0.5, rsi_cap: float = 70.0):
+    def __init__(self, touch_atr: float = 0.5, rsi_cap: float = 70.0,
+                 require_htf_agree: bool = False):
         self.touch_atr = touch_atr   # how close to the MA counts as a "touch"
         self.rsi_cap = rsi_cap
+        # Default (False) matches the original, locked behavior exactly:
+        # only avoid trading directly against the H4 bias. True requires the
+        # H4 bias to actively agree, filtering out choppy/ambiguous periods.
+        self.require_htf_agree = require_htf_agree
+        self.name = "trend_ma_bounce_strict" if require_htf_agree else "trend_ma_bounce"
 
     def generate(self, i: int, df, ctx: StratContext) -> Optional[Signal]:
         if i < 1:
@@ -36,7 +41,9 @@ class TrendStrategy(Strategy):
         tol = self.touch_atr * atr
 
         # ── BUY: bounce off rising EMA20 in an uptrend ──
-        if regime == TREND_UP and ctx.htf_bias != TREND_DOWN:
+        htf_ok_up = (ctx.htf_bias == TREND_UP) if self.require_htf_agree \
+            else (ctx.htf_bias != TREND_DOWN)
+        if regime == TREND_UP and htf_ok_up:
             uptrend = r["ema20"] > r["ema50"]
             pulled_back = r["low_prev"] <= r["ema20_prev"] + tol
             reclaimed = r["close"] > r["ema20"] and r["close"] > r["close_prev"]
@@ -48,7 +55,9 @@ class TrendStrategy(Strategy):
                 )
 
         # ── SELL: rejection off falling EMA20 in a downtrend ──
-        if regime == TREND_DOWN and ctx.htf_bias != TREND_UP:
+        htf_ok_down = (ctx.htf_bias == TREND_DOWN) if self.require_htf_agree \
+            else (ctx.htf_bias != TREND_UP)
+        if regime == TREND_DOWN and htf_ok_down:
             downtrend = r["ema20"] < r["ema50"]
             pulled_back = r["high_prev"] >= r["ema20_prev"] - tol
             rejected = r["close"] < r["ema20"] and r["close"] < r["close_prev"]

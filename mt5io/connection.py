@@ -39,6 +39,19 @@ def connect(login: int, password: str, server: str, path: Optional[str] = None,
     if not _MT5_AVAILABLE:
         logger.error("MetaTrader5 package not importable in this environment.")
         return False
+
+    if not login:
+        # No credentials configured -- attach to whatever terminal is already
+        # running and logged in, instead of forcing a fresh (blank) login.
+        logger.info("No MT5_LOGIN configured; attaching to running terminal session.")
+        if mt5.initialize(path) if path else mt5.initialize():
+            info = mt5.account_info()
+            logger.info(f"Connected | Account {info.login} | "
+                        f"{info.balance} {info.currency} | {info.server}")
+            return True
+        logger.error(f"Could not attach to a running MT5 terminal: {mt5.last_error()}")
+        return False
+
     kwargs = {"login": int(login), "password": password, "server": server}
     if path:
         kwargs["path"] = path
