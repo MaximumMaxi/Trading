@@ -1,0 +1,14 @@
+# Trading System v2 — Python dependencies
+# Tested on Python 3.13.
+
+pandas==3.0.3
+numpy==2.4.6
+
+# Live/paper trading + real data. Windows-only; needs the MetaTrader 5
+# desktop terminal installed and logged in. Not required to READ the code or
+# run synthetic tests, but required for data.loader / backtest / live bot.
+MetaTrader5==5.0.5735
+
+# ── Optional / future ──
+# scikit-learn      # Phase 2: ML meta-filter (not yet used)
+# pyarrow           # faster parquet cache (currently CSV, no dep needed)
