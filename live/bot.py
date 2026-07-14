@@ -21,6 +21,8 @@ import signal
 import sys
 import time
 
+import pandas as pd
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backtest.engine import calc_volume
@@ -95,6 +97,50 @@ class PaperBot:
         if acc:
             log.info(f"Account {acc['login']} | {acc['balance']} {acc['currency']} "
                      f"| equity {acc['equity']}")
+            self._sizing_check(acc["equity"])
+
+    def _sizing_check(self, equity: float):
+        """
+        Warn if the account is too small for clean risk sizing: if the minimum
+        lot (0.01) on any symbol would risk more than RISK_PER_TRADE% of equity,
+        the bot is forced to over-risk. Uses live ATR x the category's SL multiple
+        to estimate a typical stop distance.
+        """
+        target = equity * settings.RISK_PER_TRADE / 100.0
+        log.info(f"Sizing check — target risk/trade = {settings.RISK_PER_TRADE}% "
+                 f"(~{target:.2f}) at equity {equity:.2f}")
+        any_warn = False
+        for sym in self.symbols:
+            spec = self.specs.get(sym)
+            if spec is None:
+                continue
+            h1 = get_ohlcv(sym, settings.SIGNAL_TF, 60)
+            if h1 is None or len(h1) < 15:
+                log.warning(f"  {sym}: no data for sizing check — skipped")
+                continue
+            hi, lo, cl = h1["high"], h1["low"], h1["close"]
+            tr = pd.concat([hi - lo, (hi - cl.shift()).abs(),
+                            (lo - cl.shift()).abs()], axis=1).max(axis=1)
+            atr = tr.rolling(14).mean().iloc[-1]
+            if not atr or atr <= 0:
+                continue
+            sl_mult = settings.CATEGORY_PARAMS.get(spec.category, {}).get(
+                "atr_sl_mult", settings.ATR_SL_MULT)
+            sl_dist = sl_mult * atr
+            min_risk = spec.pnl(sl_dist, spec.min_lot)
+            pct = min_risk / equity * 100 if equity else 0
+            if min_risk > target + 1e-9:
+                any_warn = True
+                need = min_risk * 100 / settings.RISK_PER_TRADE
+                log.warning(f"  {sym}: min-lot ({spec.min_lot}) risks ~{min_risk:.2f} "
+                            f"({pct:.2f}% > {settings.RISK_PER_TRADE}%) — needs equity "
+                            f">= ~{need:.0f} for clean sizing")
+            else:
+                log.info(f"  {sym}: OK — min-lot risk ~{min_risk:.2f} "
+                         f"({pct:.2f}% <= {settings.RISK_PER_TRADE}%)")
+        if any_warn:
+            log.warning("Some symbols OVER-RISK at min lot on this balance — "
+                        "raise the balance or drop those symbols.")
 
     def run(self):
         self.start()
