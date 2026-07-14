@@ -101,4 +101,6 @@ LIVE_BARS        = 600          # bars pulled per scan (enough for EMA200/regime
 MAGIC_NUMBER     = 20260712     # tags this bot's orders in MT5
 ORDER_COMMENT    = "v2_regime"
 DEVIATION_POINTS = 20           # max slippage for market orders (points)
+COOLDOWN_BARS    = 6            # bars (H1 hours) to wait after an entry before re-entering a symbol
+COMMISSION_PER_LOT = 3.5       # round-trip commission estimate (for DRY-RUN sim P&L)
 TRADE_JOURNAL    = os.path.join(os.path.dirname(__file__), "..", "logs", "live_trades.csv")

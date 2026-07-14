@@ -64,12 +64,18 @@ def _build_router() -> EnsembleRouter:
         category_overrides=settings.CATEGORY_PARAMS)
 
 
+JOURNAL_FIELDS = ["time", "event", "symbol", "direction", "strategy", "regime",
+                  "entry_ref", "sl", "tp", "volume", "rr", "pnl", "ticket",
+                  "result", "dry_run"]
+
+
 def _journal(row: dict):
     path = os.path.abspath(settings.TRADE_JOURNAL)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     new = not os.path.exists(path)
     with open(path, "a", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(row))
+        w = csv.DictWriter(f, fieldnames=JOURNAL_FIELDS,
+                           extrasaction="ignore", restval="")
         if new:
             w.writeheader()
         w.writerow(row)
@@ -80,7 +86,9 @@ class PaperBot:
         self.router = _build_router()
         self.specs = load_specs()
         self.symbols = settings.ALL_SYMBOLS
-        self.last_bar = {}   # symbol -> last processed H1 bar time
+        self.last_bar = {}          # symbol -> last processed H1 bar time
+        self.sim_pos = {}           # symbol -> simulated open position (DRY-RUN)
+        self.last_entry_time = {}   # symbol -> last entry bar time (for cooldown)
 
     def start(self):
         mode = "DRY-RUN (no orders)" if settings.DRY_RUN else "LIVE ORDERS (demo)"
@@ -162,8 +170,9 @@ class PaperBot:
             log.warning("no account info — skipping cycle")
             return
         equity = acc["equity"]
-        positions = open_positions(settings.MAGIC_NUMBER)
-        open_count = len(positions)
+        live_positions = open_positions(settings.MAGIC_NUMBER)
+        live_syms = {p["symbol"] for p in live_positions}
+        open_count = len(self.sim_pos) if settings.DRY_RUN else len(live_positions)
 
         for sym in self.symbols:
             spec = self.specs.get(sym)
@@ -175,11 +184,18 @@ class PaperBot:
                 continue
 
             h1 = h1.iloc[:-1]    # drop the still-forming bar → completed bars only
-            bar_time = h1["time"].iloc[-1]
+            bar = h1.iloc[-1]
+            bar_time = bar["time"]
             if self.last_bar.get(sym) == bar_time:
                 continue          # already handled this bar
             self.last_bar[sym] = bar_time
 
+            # 1. DRY-RUN: check a simulated open position for SL/TP on this bar
+            if settings.DRY_RUN and sym in self.sim_pos:
+                if self._manage_sim(sym, spec, bar):
+                    open_count -= 1
+
+            # 2. generate the signal for this just-closed bar
             df = self.router.prepare(h1, h4, category=spec.category)
             sig = self.router.route(len(df) - 1, df, sym, spec)
             if sig is None:
@@ -189,27 +205,33 @@ class PaperBot:
                      f"entry={sig.entry:.5f} sl={sig.sl:.5f} tp={sig.tp:.5f} "
                      f"rr={sig.rr} | {sig.reasons[0] if sig.reasons else ''}")
 
-            # ── gates ──
-            if has_open_position(sym, settings.MAGIC_NUMBER):
-                log.info(f"  skip {sym}: already have an open position")
+            # 3. gates (shared by live orders + DRY-RUN simulation)
+            occupied = (sym in self.sim_pos) if settings.DRY_RUN else (sym in live_syms)
+            if occupied:
+                log.info(f"  skip {sym}: position already open")
+                continue
+            if self._in_cooldown(sym, bar_time):
+                log.info(f"  skip {sym}: cooldown ({settings.COOLDOWN_BARS} bars since last entry)")
                 continue
             if open_count >= settings.MAX_OPEN_TRADES:
                 log.info(f"  skip {sym}: max open trades ({open_count})")
                 continue
 
             vol = calc_volume(equity, settings.RISK_PER_TRADE, sig.entry, sig.sl, spec)
-
-            record = {
-                "time": str(bar_time), "symbol": sym, "direction": sig.direction,
-                "strategy": sig.strategy, "regime": sig.regime,
-                "entry_ref": round(sig.entry, 5), "sl": round(sig.sl, 5),
-                "tp": round(sig.tp, 5), "volume": vol, "rr": sig.rr,
-                "dry_run": settings.DRY_RUN, "ticket": "", "result": "",
-            }
+            base = {"time": str(bar_time), "symbol": sym, "direction": sig.direction,
+                    "strategy": sig.strategy, "regime": sig.regime,
+                    "entry_ref": round(sig.entry, 5), "sl": round(sig.sl, 5),
+                    "tp": round(sig.tp, 5), "volume": vol, "rr": sig.rr,
+                    "dry_run": settings.DRY_RUN}
 
             if settings.DRY_RUN:
-                log.info(f"  [DRY-RUN] would {sig.direction} {vol} {sym}")
-                record["result"] = "DRY_RUN"
+                self.sim_pos[sym] = {"direction": sig.direction, "entry": sig.entry,
+                                     "sl": sig.sl, "tp": sig.tp, "volume": vol,
+                                     "strategy": sig.strategy, "regime": sig.regime}
+                self.last_entry_time[sym] = bar_time
+                open_count += 1
+                log.info(f"  [SIM] OPEN {sig.direction} {vol} {sym} @ {sig.entry:.5f}")
+                _journal({**base, "event": "SIM_OPEN", "result": "SIM_OPEN"})
             else:
                 res = place_market_order(
                     sym, sig.direction, vol, sig.sl, sig.tp,
@@ -217,14 +239,51 @@ class PaperBot:
                     settings.DEVIATION_POINTS)
                 if res["success"]:
                     open_count += 1
-                    record["ticket"] = res.get("ticket", "")
-                    record["result"] = "FILLED"
+                    live_syms.add(sym)
+                    self.last_entry_time[sym] = bar_time
                     log.info(f"  ORDER FILLED {sym} {sig.direction} {vol} @ {res.get('price')}")
+                    _journal({**base, "event": "FILLED",
+                              "ticket": res.get("ticket", ""), "result": "FILLED"})
                 else:
-                    record["result"] = f"REJECTED:{res.get('retcode', res.get('error'))}"
-                    log.warning(f"  ORDER FAILED {sym}: {record['result']}")
+                    r = res.get("retcode", res.get("error"))
+                    log.warning(f"  ORDER FAILED {sym}: {r}")
+                    _journal({**base, "event": "REJECTED", "result": f"REJECTED:{r}"})
 
-            _journal(record)
+    def _manage_sim(self, sym, spec, bar) -> bool:
+        """Check a simulated DRY-RUN position against this bar's range. True if closed."""
+        p = self.sim_pos[sym]
+        high, low = bar["high"], bar["low"]
+        exit_price = status = None
+        if p["direction"] == "BUY":
+            if low <= p["sl"]:
+                exit_price, status = p["sl"], "SIM_SL"
+            elif high >= p["tp"]:
+                exit_price, status = p["tp"], "SIM_TP"
+        else:
+            if high >= p["sl"]:
+                exit_price, status = p["sl"], "SIM_SL"
+            elif low <= p["tp"]:
+                exit_price, status = p["tp"], "SIM_TP"
+        if status is None:
+            return False
+        move = (exit_price - p["entry"]) if p["direction"] == "BUY" else (p["entry"] - exit_price)
+        pnl = spec.pnl(move, p["volume"]) - settings.COMMISSION_PER_LOT * p["volume"]
+        log.info(f"  [SIM] CLOSE {sym} {status} @ {exit_price:.5f} pnl={pnl:.2f}")
+        _journal({"time": str(bar["time"]), "event": "SIM_CLOSE", "symbol": sym,
+                  "direction": p["direction"], "strategy": p["strategy"],
+                  "regime": p["regime"], "entry_ref": round(p["entry"], 5),
+                  "sl": round(p["sl"], 5), "tp": round(p["tp"], 5),
+                  "volume": p["volume"], "pnl": round(pnl, 2), "result": status,
+                  "dry_run": True})
+        del self.sim_pos[sym]
+        return True
+
+    def _in_cooldown(self, sym, bar_time) -> bool:
+        last = self.last_entry_time.get(sym)
+        if last is None:
+            return False
+        hours = (pd.Timestamp(bar_time) - pd.Timestamp(last)).total_seconds() / 3600.0
+        return hours < settings.COOLDOWN_BARS
 
 
 if __name__ == "__main__":
