@@ -117,7 +117,7 @@ class PortfolioBacktestEngine:
 
         for sym, d in symbol_data.items():
             spec = d["spec"]
-            df = router.prepare(d["h1"], d["h4"]).reset_index(drop=True)
+            df = router.prepare(d["h1"], d["h4"], category=spec.category).reset_index(drop=True)
             prepared[sym] = df
             specs[sym] = spec
             sig_map = {i: sig for i, sig in router.generate_all(df, sym, spec)}

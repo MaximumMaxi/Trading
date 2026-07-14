@@ -58,7 +58,8 @@ def _build_router() -> EnsembleRouter:
         regime_cfg=cfg, atr_sl_mult=settings.ATR_SL_MULT,
         atr_tp_mult=settings.ATR_TP_MULT, min_rr=settings.MIN_RR_RATIO,
         strategy_by_category=settings.STRATEGY_BY_CATEGORY,
-        require_confluence=settings.REQUIRE_CONFLUENCE)
+        require_confluence=settings.REQUIRE_CONFLUENCE,
+        category_overrides=settings.CATEGORY_PARAMS)
 
 
 def _journal(row: dict):
@@ -133,7 +134,7 @@ class PaperBot:
                 continue          # already handled this bar
             self.last_bar[sym] = bar_time
 
-            df = self.router.prepare(h1, h4)
+            df = self.router.prepare(h1, h4, category=spec.category)
             sig = self.router.route(len(df) - 1, df, sym, spec)
             if sig is None:
                 continue

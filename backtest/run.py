@@ -18,6 +18,7 @@ from config import settings
 from config.instruments import load_specs
 from data.loader import load_cached
 from ensemble.router import EnsembleRouter
+from regime.detector import RegimeConfig
 
 
 def build_symbol_data(symbols):
@@ -42,7 +43,12 @@ def main(symbols):
         print("No usable symbol data. Download it first: python -m data.loader")
         return
     print(f"Running portfolio backtest on {len(data)} symbols: {list(data)}")
-    router = EnsembleRouter(atr_sl_mult=1.5, atr_tp_mult=3.0, min_rr=settings.MIN_RR_RATIO)
+    router = EnsembleRouter(
+        regime_cfg=RegimeConfig(adx_trend=settings.ADX_TREND),
+        atr_sl_mult=settings.ATR_SL_MULT, atr_tp_mult=settings.ATR_TP_MULT,
+        min_rr=settings.MIN_RR_RATIO, strategy_by_category=settings.STRATEGY_BY_CATEGORY,
+        require_confluence=settings.REQUIRE_CONFLUENCE,
+        category_overrides=settings.CATEGORY_PARAMS)
     engine = PortfolioBacktestEngine(
         initial_capital=settings.INITIAL_CAPITAL,
         risk_pct=settings.RISK_PER_TRADE,

@@ -35,13 +35,21 @@ class EnsembleRouter:
     def __init__(self, regime_cfg: RegimeConfig = RegimeConfig(),
                  atr_sl_mult: float = 1.5, atr_tp_mult: float = 3.0,
                  min_rr: float = 1.5, strategy_by_category=None,
-                 require_confluence: bool = False):
+                 require_confluence: bool = False, category_overrides: dict = None):
+        """
+        category_overrides: optional {category: {"regime_cfg":..., "atr_sl_mult":...,
+        "atr_tp_mult":..., "min_rr":...}} to give one asset category its own
+        regime/risk params instead of the router-wide defaults above. Categories
+        not present here fall back to the defaults unchanged -- existing behavior
+        for symbols with no override is exactly as before.
+        """
         self.regime_cfg = regime_cfg
         self.atr_sl_mult = atr_sl_mult
         self.atr_tp_mult = atr_tp_mult
         self.min_rr = min_rr
         self.strategy_by_category = strategy_by_category
         self.require_confluence = require_confluence
+        self.category_overrides = category_overrides or {}
 
         trend = TrendStrategy()
         momentum = MomentumStrategy()
@@ -54,13 +62,18 @@ class EnsembleRouter:
             VOLATILE:   [BreakoutStrategy()],
         }
 
-    # ── data prep ────────────────────────────────────────────────────────────
-    def prepare(self, h1: pd.DataFrame, h4: pd.DataFrame) -> pd.DataFrame:
-        """Return an H1 frame with features, regime, and htf_bias columns."""
-        h1p = add_features(h1)
-        h1p = add_regime(h1p, self.regime_cfg)
+    # ── per-category overrides ──────────────────────────────────────────────
+    def _override(self, category: str) -> dict:
+        return self.category_overrides.get(category, {})
 
-        h4r = add_regime(add_features(h4), self.regime_cfg)[["time", "regime"]]
+    # ── data prep ────────────────────────────────────────────────────────────
+    def prepare(self, h1: pd.DataFrame, h4: pd.DataFrame, category: str = None) -> pd.DataFrame:
+        """Return an H1 frame with features, regime, and htf_bias columns."""
+        cfg = self._override(category).get("regime_cfg", self.regime_cfg)
+        h1p = add_features(h1)
+        h1p = add_regime(h1p, cfg)
+
+        h4r = add_regime(add_features(h4), cfg)[["time", "regime"]]
         h4r = h4r.rename(columns={"regime": "htf_bias"}).dropna(subset=["htf_bias"])
 
         # as-of merge: each H1 bar gets the most recent completed H4 regime
@@ -72,9 +85,11 @@ class EnsembleRouter:
 
     # ── routing ────────────────────────────────────────────────────────────
     def make_context(self, symbol: str, spec: SymbolSpec, htf_bias: str) -> StratContext:
+        ov = self._override(spec.category)
         return StratContext(symbol=symbol, spec=spec, htf_bias=htf_bias,
-                            atr_sl_mult=self.atr_sl_mult,
-                            atr_tp_mult=self.atr_tp_mult, min_rr=self.min_rr)
+                            atr_sl_mult=ov.get("atr_sl_mult", self.atr_sl_mult),
+                            atr_tp_mult=ov.get("atr_tp_mult", self.atr_tp_mult),
+                            min_rr=ov.get("min_rr", self.min_rr))
 
     def route(self, i: int, df: pd.DataFrame, symbol: str,
               spec: SymbolSpec) -> Optional[Signal]:
