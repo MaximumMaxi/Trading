@@ -27,36 +27,39 @@ The locked universe in `config/settings.py`:
 | US30m (Dow) | mean_reversion_bb | +0.29 |
 | AUDUSDm | mean_reversion_bb | +0.22 |
 | BTCUSDm | momentum_macd_roc | +0.07 (thin, asymmetric — works in downtrends) |
-| XAUUSDm | trend_ma_bounce_strict + momentum_macd_roc_strict | +0.26 (IS +0.29, <15% decay) |
 
-Locked params for US30/AUDUSD/BTC: `ATR_SL_MULT=2.0, ATR_TP_MULT=3.0,
-ADX_TREND=28.0, REQUIRE_CONFLUENCE=False, MIN_RR=1.5`. Walk-forward: 4/4 folds
-profitable, OOS PF ~1.25, ~46% win. **Treat +100% headline skeptically** —
-universe was chosen with full-sample knowledge (selection bias); real
-expectation is lower.
+Locked params: `ATR_SL_MULT=2.0, ATR_TP_MULT=3.0, ADX_TREND=28.0,
+REQUIRE_CONFLUENCE=False, MIN_RR=1.5`. Walk-forward: 4/4 folds profitable, OOS
+PF ~1.25, ~46% win. **Treat +100% headline skeptically** — universe was chosen
+with full-sample knowledge (selection bias); real expectation is lower.
 
-XAUUSDm uses its own params via `CATEGORY_PARAMS["metals"]` in
-`config/settings.py` (wired through `EnsembleRouter(category_overrides=...)`,
-additive — other categories fall back to the shared globals above, unchanged):
-`atr_sl_mult=1.5, atr_tp_mult=8.0, adx_trend=25.0`. This is the strict-HTF
-variant (below) with a wide asymmetric target — low win rate (~20%), profits
-come from letting the rare trend-continuation winners run. Walk-forward: 4/4
-folds profitable, OOS PF 1.27, max DD 14.5%, avg R +0.26 (IS +0.29 → OOS +0.26,
-under 15% decay — a healthy IS/OOS relationship, unlike the rejected attempt
-below). Symbol/strategy names: `trend_ma_bounce_strict` /
-`momentum_macd_roc_strict` in `strategies/trend.py` / `momentum.py`
-(`require_htf_agree=True` — requires the H4 bias to actively agree with the
-signal direction, not just "not opposed"; default `False` preserves the
-original `trend_ma_bounce`/`momentum_macd_roc` behavior byte-for-byte for the
-other three locked symbols).
+Note: these three symbols only had ~20,000 H1 bars available when originally
+validated (2023-02 onward) — they haven't been re-tested against the fuller
+2018+ history the way gold was below. Worth doing before trusting them further
+too; see the gold entry for why that matters.
 
 ## Rejected (don't redo these — already tested and failed OOS)
 - **Gold (XAU) trend, plain strategies at shared 2.0/3.0 ATR mults**: +0.26
-  in-sample → +0.02 OOS = overfit mirage. Superseded 2026-07 — see
-  "Validated edge" above: the strict-HTF-agreement + wide-asymmetric-target
-  variant (different entry filter, very different SL/TP shape) does not
-  reproduce this collapse. Don't retry the *plain* trend/momentum strategies
-  on gold at the shared params; that combination is still dead.
+  in-sample → +0.02 OOS = overfit mirage.
+- **Gold (XAU) trend, strict-H4-agreement variant, wide asymmetric RR
+  (2026-07)**: `trend_ma_bounce_strict`/`momentum_macd_roc_strict`
+  (`require_htf_agree=True` in `strategies/trend.py`/`momentum.py`) with
+  `atr_sl_mult=1.5, atr_tp_mult=8.0, adx_trend=25.0`. On the narrow
+  2023-02..2026-07 window (~20k H1 bars, the only data cached at the time) this
+  looked like a real edge: 4/4 folds profitable, OOS PF 1.27, avg R +0.26 (IS
+  +0.29, <15% decay) — healthy-looking IS/OOS relationship, unlike the plain
+  version above. **Retested on the full 2018-06..2026-07 history (~30k H1 bars,
+  8 folds): 4/8 folds profitable, OOS PF 0.906, OOS return -19.6%, max DD
+  37.8%.** Fold spanning 2022-07..2023-02 alone lost -23.6% (PF 0.016). The
+  2023-2026 "pass" was overfit to a window dominated by one long gold bull run,
+  not a real edge — the extra history it hadn't been tested against is exactly
+  what exposed it. **Lesson: walk-forward on a recent-only slice is not enough
+  for an instrument this regime-dependent — always pull and test the FULL
+  available history before calling anything validated.** The
+  `category_overrides` mechanism this added to `EnsembleRouter` (per-category
+  ATR mult/regime-cfg overrides) is legitimate, tested, zero-effect-on-others
+  infrastructure and was left in place with `CATEGORY_PARAMS = {}` — reusable
+  if a future gold (or other) idea actually clears full-history walk-forward.
 - **S&P/Nasdaq (US500/USTEC) mean-reversion**: ~0 trades — they trend, rarely range.
 - **Momentum on FX majors**: consistently negative; momentum is confirmation-grade,
   not a standalone FX entry.

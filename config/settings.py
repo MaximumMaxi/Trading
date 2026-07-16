@@ -8,8 +8,6 @@ live password in this file.
 
 import os
 
-from regime.detector import RegimeConfig
-
 # ─── MT5 credentials ────────────────────────────────────────────────────────
 # Priority: environment variables > config/secrets.py > placeholders.
 try:
@@ -35,19 +33,19 @@ MT5_PATH     = _cred("MT5_PATH", "MT5_PATH", None)  # path to terminal64.exe, op
 # Grouped by asset class. Adjust to match your broker's exact symbol names
 # (some brokers use suffixes like "XAUUSD.m" or "US30.cash").
 # ── LOCKED validated universe (survived walk-forward, 2026-07) ──
-# US30 & AUD mean-reversion = robust core; BTC momentum = thin satellite;
-# XAUUSD trend/momentum (strict H4 agreement, wide asymmetric RR) added 2026-07 --
-# supersedes the earlier rejected "Gold (XAU) trend" attempt (see CLAUDE.md):
-# that one used the plain trend/momentum strategies at the shared 2.0/3.0 ATR
-# mults and collapsed IS->OOS (+0.26 -> +0.02 avg R). This version requires the
-# H4 bias to actively agree (not just "not opposed") and uses a much wider,
-# asymmetric target (see CATEGORY_PARAMS below) -- walk-forward: 4/4 folds
-# profitable, OOS PF 1.27, OOS avg R +0.26 (IS +0.29, so <15% IS->OOS decay).
+# US30 & AUD mean-reversion = robust core; BTC momentum = thin satellite.
+# XAUUSD (metals) intentionally excluded -- see "Rejected" in CLAUDE.md.
+# A strict-H4-agreement trend/momentum variant briefly looked validated
+# (4/4 folds, OOS PF 1.27) on 2023-02..2026-07 data only; retesting on the
+# full 2018..2026 history it degrades to 4/8 folds, OOS PF 0.906, -19.6%
+# return, 37.8% max DD. The earlier "pass" was overfit to a window dominated
+# by one long gold bull run, not a real edge. Do not re-add metals here
+# without walk-forward validation across the FULL available history, not a
+# recent-only slice -- that's exactly the mistake that produced this entry.
 SYMBOLS = {
     "indices":     ["US30m"],
     "fx_majors":   ["AUDUSDm"],
     "crypto":      ["BTCUSDm"],
-    "metals":      ["XAUUSDm"],
 }
 
 ALL_SYMBOLS = [s for group in SYMBOLS.values() for s in group]
@@ -57,20 +55,14 @@ STRATEGY_BY_CATEGORY = {
     "indices":   ["mean_reversion_bb"],
     "fx_majors": ["mean_reversion_bb"],
     "crypto":    ["momentum_macd_roc"],
-    "metals":    ["trend_ma_bounce_strict", "momentum_macd_roc_strict"],
 }
 
 # Per-category overrides for regime/risk params that differ from the shared
 # ATR_SL_MULT/ATR_TP_MULT/ADX_TREND below (see EnsembleRouter's
-# category_overrides). Categories absent here use the shared globals unchanged
-# -- indices/fx_majors/crypto are untouched by adding this mechanism.
-CATEGORY_PARAMS = {
-    "metals": {
-        "regime_cfg":  RegimeConfig(adx_trend=25.0),
-        "atr_sl_mult": 1.5,
-        "atr_tp_mult": 8.0,
-    },
-}
+# category_overrides). Categories absent here use the shared globals unchanged.
+# Empty for now -- the one entry tried here (metals) failed full-history
+# walk-forward validation; see the note above SYMBOLS.
+CATEGORY_PARAMS = {}
 
 # ── LOCKED validated strategy parameters (walk-forward winners) ──
 ATR_SL_MULT        = 2.0

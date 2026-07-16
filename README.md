@@ -16,13 +16,13 @@ Walk-forward on real Exness data left a small but genuinely out-of-sample edge:
 | US30 (Dow) | mean-reversion | +0.29 |
 | AUDUSD | mean-reversion | +0.22 |
 | BTCUSD | momentum | +0.07 (thin) |
-| XAUUSD (Gold) | trend/momentum, strict H4 agreement | +0.26 |
 
-S&P/Nasdaq mean-reversion was tested and **rejected** (never ranged). An
-earlier plain-strategy gold-trend attempt was also rejected as an overfit
-mirage; the strict-H4-agreement + wide-asymmetric-target variant above is a
-different trade shape and holds up OOS (see `CLAUDE.md`). The locked universe
-lives in `config/settings.py`.
+S&P/Nasdaq mean-reversion was tested and **rejected** (never ranged). Two gold
+(XAUUSD) trend attempts were also rejected as overfit mirages — a plain
+version, and a later strict-H4-agreement + wide-asymmetric-target version that
+looked validated on a recent-only slice but failed once retested against the
+full available history (see `CLAUDE.md`). The locked universe lives in
+`config/settings.py`.
 
 ## Who does what
 
