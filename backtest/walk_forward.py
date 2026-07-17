@@ -181,4 +181,7 @@ if __name__ == "__main__":
     if not data:
         print("No usable data. Run `python -m data.loader` first.")
     else:
-        walk_forward(data)
+        # 8 folds over full history + production category gating, so the
+        # re-validation matches how the bot actually trades (see run.py).
+        walk_forward(data, n_splits=8,
+                     strategy_by_category=settings.STRATEGY_BY_CATEGORY)

@@ -73,7 +73,7 @@ REQUIRE_CONFLUENCE = False
 # ─── Timeframes ─────────────────────────────────────────────────────────────
 SIGNAL_TF = "H1"   # entry timeframe
 BIAS_TF   = "H4"   # higher-timeframe regime/bias
-HISTORY_BARS = 20_000   # bars to pull per symbol per timeframe for backtesting
+HISTORY_BARS = 50_000   # pull the FULL available H1 history (~2018+) for validation
 
 # ─── Data cache ─────────────────────────────────────────────────────────────
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "cache")
