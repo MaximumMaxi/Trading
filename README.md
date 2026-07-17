@@ -9,20 +9,18 @@ walk-forward → live/paper bot.**
 
 ## Validated edge (as of 2026-07)
 
-Walk-forward on real Exness data left a small but genuinely out-of-sample edge:
+Full-history (2018+) walk-forward left **one** genuinely out-of-sample edge:
 
-| Instrument | Strategy | OOS avg R |
+| Instrument | Strategy | full-history OOS avg R |
 |---|---|---|
-| US30 (Dow) | mean-reversion | +0.29 |
-| AUDUSD | mean-reversion | +0.22 |
-| BTCUSD | momentum | +0.07 (thin) |
+| US30 (Dow) | mean-reversion | **+0.163** |
 
-S&P/Nasdaq mean-reversion was tested and **rejected** (never ranged). Two gold
-(XAUUSD) trend attempts were also rejected as overfit mirages — a plain
-version, and a later strict-H4-agreement + wide-asymmetric-target version that
-looked validated on a recent-only slice but failed once retested against the
-full available history (see `CLAUDE.md`). The locked universe lives in
-`config/settings.py`.
+A small, drawdown-heavy edge (~83% of all portfolio profit; 33% max DD on the
+broader test) — size conservatively. Everything else tested was **rejected** as
+a recent-window mirage that evaporated on full history: **AUDUSD mean-reversion**
+(+0.22 on 2023+ → ~0 full history), **BTCUSD momentum** (+0.07 → flat), two
+**gold (XAUUSD)** trend variants, and **S&P/Nasdaq** mean-reversion (never
+ranged). See `CLAUDE.md`. The locked universe lives in `config/settings.py`.
 
 ## Who does what
 

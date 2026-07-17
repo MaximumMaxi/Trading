@@ -32,20 +32,18 @@ MT5_PATH     = _cred("MT5_PATH", "MT5_PATH", None)  # path to terminal64.exe, op
 # ─── Instruments to trade ───────────────────────────────────────────────────
 # Grouped by asset class. Adjust to match your broker's exact symbol names
 # (some brokers use suffixes like "XAUUSD.m" or "US30.cash").
-# ── LOCKED validated universe (survived walk-forward, 2026-07) ──
-# US30 & AUD mean-reversion = robust core; BTC momentum = thin satellite.
-# XAUUSD (metals) intentionally excluded -- see "Rejected" in CLAUDE.md.
-# A strict-H4-agreement trend/momentum variant briefly looked validated
-# (4/4 folds, OOS PF 1.27) on 2023-02..2026-07 data only; retesting on the
-# full 2018..2026 history it degrades to 4/8 folds, OOS PF 0.906, -19.6%
-# return, 37.8% max DD. The earlier "pass" was overfit to a window dominated
-# by one long gold bull run, not a real edge. Do not re-add metals here
-# without walk-forward validation across the FULL available history, not a
-# recent-only slice -- that's exactly the mistake that produced this entry.
+# ── LOCKED validated universe: US30 mean-reversion ONLY (2026-07) ──
+# Full-history (2018+) 8-fold walk-forward is the bar. Only US30 mean-reversion
+# clears it with a real margin (avg R +0.163, ~83% of all portfolio profit).
+# DROPPED — each was a recent-window mirage that evaporated on full history:
+#   AUDUSD mean-reversion: +0.22 avg R on 2023+ -> -0.001 (zero) full history.
+#   BTCUSD momentum:       +0.07 on 2023+ -> +0.018 flat, asymmetric (works
+#                          short/downtrend +0.235, loses long/uptrend -0.279).
+#   XAUUSD (gold) trend:   overfit to one bull run — see "Rejected" in CLAUDE.md.
+# Do NOT add any instrument without a FULL-history walk-forward first — the
+# recent-only slice has now lied three times (gold, AUD, BTC).
 SYMBOLS = {
     "indices":     ["US30m"],
-    "fx_majors":   ["AUDUSDm"],
-    "crypto":      ["BTCUSDm"],
 }
 
 ALL_SYMBOLS = [s for group in SYMBOLS.values() for s in group]
@@ -53,8 +51,6 @@ ALL_SYMBOLS = [s for group in SYMBOLS.values() for s in group]
 # Which strategy trades each asset class (validated edge assignment).
 STRATEGY_BY_CATEGORY = {
     "indices":   ["mean_reversion_bb"],
-    "fx_majors": ["mean_reversion_bb"],
-    "crypto":    ["momentum_macd_roc"],
 }
 
 # Per-category overrides for regime/risk params that differ from the shared

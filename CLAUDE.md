@@ -20,25 +20,29 @@ out-of-sample, then paper-traded on a demo before anything real.
 - To let Claude run real backtests on Maxwell's machine, manually copy `data/cache/`
   + `config/specs.json` over (kept out of git).
 
-## Validated edge (out-of-sample, walk-forward)
-The locked universe in `config/settings.py`:
-| Instrument | Strategy | OOS avg R |
+## Validated edge (FULL-history out-of-sample walk-forward)
+The locked universe in `config/settings.py` — **US30 mean-reversion ONLY**:
+| Instrument | Strategy | full-history OOS avg R |
 |---|---|---|
-| US30m (Dow) | mean_reversion_bb | +0.29 |
-| AUDUSDm | mean_reversion_bb | +0.22 |
-| BTCUSDm | momentum_macd_roc | +0.07 (thin, asymmetric — works in downtrends) |
+| US30m (Dow) | mean_reversion_bb | **+0.163** (~83% of all portfolio profit) |
 
-Locked params: `ATR_SL_MULT=2.0, ATR_TP_MULT=3.0, ADX_TREND=28.0,
-REQUIRE_CONFLUENCE=False, MIN_RR=1.5`. Walk-forward: 4/4 folds profitable, OOS
-PF ~1.25, ~46% win. **Treat +100% headline skeptically** — universe was chosen
-with full-sample knowledge (selection bias); real expectation is lower.
-
-Note: these three symbols only had ~20,000 H1 bars available when originally
-validated (2023-02 onward) — they haven't been re-tested against the fuller
-2018+ history the way gold was below. Worth doing before trusting them further
-too; see the gold entry for why that matters.
+Full 2018+ history, 8-fold walk-forward. US30 mean-reversion is the only
+instrument that clears the bar with a real margin. Params: `ATR_SL_MULT=2.0,
+ATR_TP_MULT=3.0, ADX_TREND=28.0, REQUIRE_CONFLUENCE=False, MIN_RR=1.5`.
+The 3-symbol stitched result (before trimming) was 7/8 folds, +32.8%, PF 1.10,
+33.7% max DD — but ~83% of that was US30; AUD/BTC added ~zero per-R (see Rejected).
+Modest, drawdown-heavy edge: size conservatively (≤1% risk). Now on demo forward
+test as a US30-only system. Real diversification should come from finding MORE
+range-bound instruments that clear FULL-history WF (e.g. FX crosses EURGBP/EURCHF
+— untested), not from padding with unproven symbols.
 
 ## Rejected (don't redo these — already tested and failed OOS)
+- **AUDUSD mean-reversion & BTCUSD momentum — recent-window mirages (2026-07)**:
+  validated on the 2023+ slice (AUD +0.22R, BTC +0.07R) but on FULL 2018+ history
+  AUD collapsed to -0.001R (zero) and BTC to +0.018R (flat, asymmetric: +0.235
+  short/downtrend vs -0.279 long/uptrend). Dropped — US30 mean-reversion is the
+  only survivor. BTC's downtrend-only momentum asymmetry is an interesting NEW
+  hypothesis, but validate on full history before trusting it.
 - **Gold (XAU) trend, plain strategies at shared 2.0/3.0 ATR mults**: +0.26
   in-sample → +0.02 OOS = overfit mirage.
 - **Gold (XAU) trend, strict-H4-agreement variant, wide asymmetric RR
