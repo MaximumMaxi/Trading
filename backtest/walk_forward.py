@@ -183,5 +183,11 @@ if __name__ == "__main__":
     else:
         # 8 folds over full history + production category gating, so the
         # re-validation matches how the bot actually trades (see run.py).
-        walk_forward(data, n_splits=8,
-                     strategy_by_category=settings.STRATEGY_BY_CATEGORY)
+        _, _, oos_trades = walk_forward(
+            data, n_splits=8,
+            strategy_by_category=settings.STRATEGY_BY_CATEGORY)
+        out = os.path.join(os.path.dirname(__file__), "..", "logs", "wf_oos_trades.csv")
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        pd.DataFrame([t.__dict__ for t in oos_trades]).to_csv(out, index=False)
+        print(f"OOS trades saved to {os.path.abspath(out)} "
+              f"(diagnose: python backtest/diagnose.py logs/wf_oos_trades.csv)")
