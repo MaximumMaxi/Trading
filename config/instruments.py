@@ -58,6 +58,9 @@ _FB = [
     ("USDCAD", "fx_majors", 5, 1e-5, 1e-4, 1e-5, 0.75, 100_000, 0.01, 0.01, 100, 12),
     # JPY quote — 3-digit, 1 pip = 0.01, tick 0.001 ≈ $0.67/lot (varies w/ USDJPY)
     ("USDJPY", "fx_majors", 3, 1e-3, 1e-2, 1e-3, 0.67, 100_000, 0.01, 0.01, 100, 10),
+    # FX crosses (range-prone MR candidates) — tick_value ~quote ccy, MT5 overrides live
+    ("EURGBP", "fx_majors", 5, 1e-5, 1e-4, 1e-5, 1.27, 100_000, 0.01, 0.01, 100, 12),
+    ("EURCHF", "fx_majors", 5, 1e-5, 1e-4, 1e-5, 1.10, 100_000, 0.01, 0.01, 100, 15),
     # Metals — XAUUSD 2-digit, 1.00 move = $100/lot (contract 100 oz)
     ("XAUUSD", "metals",    2, 1e-2, 1e-2, 1e-2, 1.0,  100,     0.01, 0.01, 50,  20),
     # Indices — US30 contract 1, tick_value = tick_size*contract = 0.1  (1.0 pt = $1/lot)
